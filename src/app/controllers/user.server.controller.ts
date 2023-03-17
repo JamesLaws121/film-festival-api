@@ -1,5 +1,6 @@
 import {Request, Response} from "express";
 import Logger from "../../config/logger";
+import * as users from '../models/user.server.model';
 
 const register = async (req: Request, res: Response): Promise<void> => {
     try{
@@ -44,18 +45,20 @@ const logout = async (req: Request, res: Response): Promise<void> => {
 }
 
 const view = async (req: Request, res: Response): Promise<void> => {
+    Logger.http(`GET single user, id: ${req.params.id}`)
+    Logger.info("hello");
+    const id = req.params.id;
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
-        return;
+        const result = await users.getUser( parseInt(id, 10) );
+        if( result.length === 0 ){
+            res.status( 404 ).send('User not found');
+        } else {
+            res.status( 200 ).send( result[0] );
+        }
     } catch (err) {
-        Logger.error(err);
-        res.statusMessage = "Internal Server Error";
-        res.status(500).send();
-        return;
+        res.status( 500 ).send( `ERROR reading user ${id}: ${ err }` );
     }
-}
+};
 
 
 const update = async (req: Request, res: Response): Promise<void> => {

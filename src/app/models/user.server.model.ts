@@ -17,14 +17,18 @@ const insert = async (): Promise<any> => {
     return null;
 }
 
-const getOne = async (): Promise<any> => {
-    Logger.info(`Get info on user`);
-    return null;
-}
+const getUser = async (id: number) : Promise<User[]> => {
+    Logger.info(`Getting user ${id} from the database`);
+    const conn = await getPool().getConnection();
+    const query = 'select * from user where id = ?';
+    const [ rows ] = await conn.query( query, [ id ] );
+    await conn.release();
+    return rows;
+};
 
 const alter = async (): Promise<any> => {
     Logger.info(`Edit a users details`);
     return null;
 }
 
-export { login, logout, getOne, insert, alter }
+export { login, logout, getUser, insert, alter }
