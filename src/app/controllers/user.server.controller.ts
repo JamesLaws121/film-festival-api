@@ -1,12 +1,50 @@
 import {Request, Response} from "express";
 import Logger from "../../config/logger";
 import * as users from '../models/user.server.model';
+import * as schemas from '../resources/schemas.json';
+import Ajv from 'ajv';
+
+const ajv = new Ajv({removeAdditional: 'all', strict: false});
+const validate = async (schema: object, data: any) => {
+    try {
+        const validator = ajv.compile(schema);
+        const valid = await validator(data);
+        if(!valid) {
+            return ajv.errorsText(validator.errors);
+        }
+        return true;
+    } catch (err) {
+        return err.message;
+    }
+}
 
 const register = async (req: Request, res: Response): Promise<void> => {
+    Logger.http(`Register single user`)
+
+    const validation = await validate(
+        schemas.user_register,
+        req.body);
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send();
+        return;
+    }
+
+    const email = req.body.email;
+    const firstName = req.body.firstName;
+    const lastName = req.body.lastName;
+    const imageFilename = req.body.imageFilename;
+    const password = req.body.password;
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await users.register(email, firstName, lastName, imageFilename, password);
+        if( result === 400 ){
+            res.status( 400 ).send('Bad Request. Invalid information');
+        } else if( result === 403 ){
+            res.status( 403 ).send('Forbidden. Email already in use');
+        } else {
+            res.status( 201 ).send('Created');
+        }
         return;
     } catch (err) {
         Logger.error(err);
@@ -46,7 +84,6 @@ const logout = async (req: Request, res: Response): Promise<void> => {
 
 const view = async (req: Request, res: Response): Promise<void> => {
     Logger.http(`GET single user, id: ${req.params.id}`)
-    Logger.info("hello");
     const id = req.params.id;
     try{
         const result = await users.getUser( parseInt(id, 10) );

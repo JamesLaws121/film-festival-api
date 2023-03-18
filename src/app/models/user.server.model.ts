@@ -2,6 +2,12 @@ import { getPool } from '../../config/db';
 import Logger from '../../config/logger';
 import { ResultSetHeader } from 'mysql2'
 
+
+const register = async (email : string, firstName : string, lastName : string, imageFilename : string, password : string): Promise<any> => {
+    Logger.info(`Register new user`);
+    return null;
+}
+
 const login = async (): Promise<any> => {
     Logger.info(`Logging in as existing user`);
     return null;
@@ -31,4 +37,4 @@ const alter = async (): Promise<any> => {
     return null;
 }
 
-export { login, logout, getUser, insert, alter }
+export { login, logout, getUser, insert, alter, register}
