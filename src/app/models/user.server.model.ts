@@ -8,7 +8,7 @@ const register = async (email : string, firstName : string, lastName : string, i
     return null;
 }
 
-const login = async (): Promise<any> => {
+const login = async (email : string, password : string): Promise<any> => {
     Logger.info(`Logging in as existing user`);
     return null;
 }
