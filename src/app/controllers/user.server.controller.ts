@@ -19,7 +19,7 @@ const validate = async (schema: object, data: any) => {
 }
 
 const register = async (req: Request, res: Response): Promise<void> => {
-    Logger.http(`Register single user`)
+    Logger.http(`Register user`)
 
     const validation = await validate(
         schemas.user_register,
@@ -55,10 +55,30 @@ const register = async (req: Request, res: Response): Promise<void> => {
 }
 
 const login = async (req: Request, res: Response): Promise<void> => {
+    Logger.http('Login user')
+
+    const validation = await validate(
+        schemas.user_login,
+        req.body);
+
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send();
+        return;
+    }
+
+    const email = req.body.email;
+    const password = req.body.password;
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await users.login(email, password);
+        if( result === 400 ){
+            res.status( 400 ).send('Bad Request. Invalid information');
+        } else if( result === 401 ){
+            res.status( 401 ).send('Not Authorised. Incorrect email/password');
+        } else {
+            res.status( 200 ).send('OK');
+        }
         return;
     } catch (err) {
         Logger.error(err);
