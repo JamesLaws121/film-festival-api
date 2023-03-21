@@ -90,9 +90,12 @@ const login = async (req: Request, res: Response): Promise<void> => {
 
 const logout = async (req: Request, res: Response): Promise<void> => {
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await users.logout();
+        if( result === 401 ){
+            res.status( 401 ).send('Unauthorized. Cannot log out if you are not authenticated');
+        } else {
+            res.status( 200 ).send('OK');
+        }
         return;
     } catch (err) {
         Logger.error(err);
