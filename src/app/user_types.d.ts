@@ -9,3 +9,7 @@ type User = {
     password : string,
     image_filename : string,
 }
+
+type Token = {
+    token : string,
+}
