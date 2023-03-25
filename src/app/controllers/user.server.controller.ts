@@ -4,6 +4,7 @@ import * as users from '../models/user.server.model';
 import * as schemas from '../resources/schemas.json';
 import Ajv from 'ajv';
 import bcrypt from 'bcrypt';
+import {findUserIdByEmail, getUserByEmail} from "../models/user.server.model";
 
 const ajv = new Ajv({removeAdditional: 'all', strict: false});
 const validate = async (schema: object, data: any) => {
@@ -163,6 +164,7 @@ const view = async (req: Request, res: Response): Promise<void> => {
 const update = async (req: Request, res: Response): Promise<void> => {
     Logger.http(`Update user, id: ${req.params.id}`)
 
+
     const authenticatedId = req.body.authenticatedUserId;
     const id = req.params.id;
 
@@ -177,41 +179,58 @@ const update = async (req: Request, res: Response): Promise<void> => {
         return;
     }
     const user = currentValues[0];
-    let email = user.email;
+    const oldEmail = user.email;
+    let email = oldEmail;
     let firstName = user.first_name;
     let lastName = user.last_name;
     let password = user.password;
 
-    if (req.body.password != null) {
+
+    if ((req.body.firstName)) {
+        firstName = req.body.firstName;
+    }
+    if ((req.body.lastName)) {
+        lastName = req.body.lastName;
+    }
+
+    if ((req.body.password)) {
         const newPassword = req.body.password;
-        async function hashPassword(plainText : string) {
-            return await bcrypt.hash(plainText, 10);
-        }
+        if ((req.body.currentPassword)) {
+            const oldPassword = req.body.currentPassword;
 
-        const hashedPassword = await hashPassword(newPassword);
+            if(!(await bcrypt.compare(oldPassword, password))) {
+                res.status( 401 ).send('Unauthorized or Invalid currentPassword');
+                return;
+            }
+            if (oldPassword === newPassword) {
+                res.status( 403 ).send('Identical current and new passwords');
+                return;
+            }
+            async function hashPassword(plainText : string) {
+                return await bcrypt.hash(plainText, 10);
+            }
 
-        if(!(await bcrypt.compare(password, hashedPassword))) {
+            password = await hashPassword(newPassword);
+
+        } else {
             res.status( 401 ).send('Unauthorized or Invalid currentPassword');
             return;
-        } else {
-            password = newPassword;
         }
     }
 
-    try {
+
+    if (req.body.email){
         email = req.body.email;
-    } catch {
-        email = email;
-    }
-    try {
-        firstName = req.body.firstName;
-    } catch {
-        firstName = firstName;
-    }
-    try {
-        lastName = req.body.lastName;
-    } catch {
-        lastName = lastName;
+        if (email !== null && email !== oldEmail) {
+            if(!(await validateEmail(email))) {
+                res.status( 400 ).send('Email address is invalid');
+                return;
+            }
+            if (!((await users.getUserByEmail(email)).length === 0)) {
+                res.status( 403 ).send('Email is already in use');
+                return;
+            }
+        }
     }
 
     try{

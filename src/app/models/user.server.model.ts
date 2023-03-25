@@ -97,5 +97,36 @@ const insertTokenByEmail = async (token: string, email: string) : Promise<any> =
     return result;
 }
 
+const saveImage = async (id: number, imageFilename: string) : Promise<any> => {
+    Logger.info('Saving user image');
+    const conn = await getPool().getConnection();
+    const query = 'update user set image_filename = ? where id = ? ';
 
-export { login, logout, getUser, insert, alterUser, register, getUserByEmail, findUserIdByToken, insertTokenByEmail, findUserIdByEmail}
+    const [ result ] = await conn.query( query, [ imageFilename, id ] );
+    await conn.release();
+    return result;
+}
+
+const getImage = async (id: number) : Promise<any> => {
+    Logger.info('Getting user image');
+    const conn = await getPool().getConnection();
+    const query = 'select image_filename from user where id = ?';
+
+    const result = await conn.query( query, [  id ] );
+    await conn.release();
+    return result;
+}
+
+const deleteImage = async (id: number) : Promise<any> => {
+    Logger.info('Deleting a user image');
+    const conn = await getPool().getConnection();
+    const query = 'update user set image_filename = null where id = ? ';
+
+    const [ result ] = await conn.query( query, [ id ] );
+    await conn.release();
+    return result;
+}
+
+
+export { login, logout, getUser, insert, alterUser, register, getUserByEmail, findUserIdByToken,
+    insertTokenByEmail, findUserIdByEmail, saveImage, getImage, deleteImage}

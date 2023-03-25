@@ -20,6 +20,6 @@ module.exports = (app: Express) => {
 
     app.route(rootUrl+'/users/:id/image')
         .get(userImages.getImage)
-        .put(userImages.setImage)
-        .delete(userImages.deleteImage)
+        .put(authenticate.loginRequired, userImages.setImage)
+        .delete(authenticate.loginRequired, userImages.deleteImage)
 }
