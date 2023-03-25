@@ -9,7 +9,7 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
     let startIndex = 0;
     let count = 0;
     let query = "";
-    let directorId = "director_id";
+    let directorId = null;
     let genreIds = await films.getGenreIds();
     let ageRating = [ 'G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'];
     let reviewerId = "id";
@@ -40,7 +40,14 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
         sortBy = req.body.sortBy;
     }
     try{
-        let results = await films.getFilms(query, directorId, genreIds, ageRating, reviewerId, sortBy);
+        let results;
+        if (directorId !== null){
+            results = await films.getFilmsWithDirector(query, directorId, genreIds, ageRating, reviewerId, sortBy);
+
+        } else {
+            results = await films.getFilms(query, genreIds, ageRating, reviewerId, sortBy);
+        }
+
         if (startIndex + count > results.length){
             res.status(400).send("Bad Request");
         } else {
