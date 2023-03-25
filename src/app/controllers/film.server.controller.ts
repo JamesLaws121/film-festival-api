@@ -10,7 +10,7 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
     let startIndex = 0;
     let count = null;
     let qQuery = " ";
-    let directorId = 'director_id'
+    let directorId = null;
     let genreIds = (await films.getGenreIds()).toString();
     let ageRating = "'G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'";
     let reviewerId = "id";
@@ -45,16 +45,21 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
     try{
         // Logger.info(query);
         // Logger.info("Director ids" + directorId.toString());
-       // Logger.info(genreIds.toString());
+        // Logger.info(genreIds.toString());
         // Logger.info(ageRating.toString());
         // Logger.info(reviewerId);
         // Logger.info(sortBy);
-        let results = await films.getFilms(qQuery, directorId, genreIds.toString(), ageRating, reviewerId, sortBy);
+
+        let results;
+        if (directorId !== null){
+            results = await films.getFilmsWithDirector(qQuery, directorId, genreIds, ageRating, reviewerId, sortBy);
+
+        } else {
+            results = await films.getFilms(qQuery, genreIds, ageRating, reviewerId, sortBy);
+        }
         if (count !== null) {
-            if (startIndex + count > results.length){
+            if (startIndex + count > results.length) {
                 res.status(400).send("Bad Request");
-            } else {
-                results = results.slice(startIndex, count + startIndex);
             }
         } else {
             count = results.length;
