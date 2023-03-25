@@ -3,14 +3,17 @@ import Logger from "../../config/logger";
 import {getPool} from "../../config/db";
 
 
-const getFilms = async (queryString : string, directorId: string, genreIds: number[],
-                        ageRatings: string[], reviewerId: string, sortBy: string) : Promise<Film[]> => {
+const getFilms = async (queryString : string, directorId: string, genreIds: string,
+                        ageRatings: string, reviewerId: string, sortBy: string) : Promise<Film[]> => {
     Logger.info(`Getting films from the database`);
+    Logger.info(sortBy);
     const conn = await getPool().getConnection();
-    const query = 'select * from film ' +
-        'INNER JOIN film_review ON film.reviewerId=film_review.id' +
-        'where title like %?% description like %?% director_id = ? genre_id in ? age_rating in ? order by ?';
-    const [ rows ] = await conn.query( query, [queryString, queryString, directorId, genreIds, ageRatings, sortBy]);
+    const query = "select * from film " +
+        "where title like '%?%' and description like '%?%' and director_id = " + directorId +
+        " and age_rating in ( " + ageRatings + ") " +
+        " order by " + sortBy + " ASC";
+    Logger.info( query)
+    const [ rows ] = await conn.query( query, [queryString, queryString, sortBy]);
     await conn.release();
     return rows;
 };
@@ -21,9 +24,31 @@ const getGenreIds = async () : Promise<number[]> => {
     const query = 'select id from genre';
     const [ rows ] = await conn.query( query);
     await conn.release();
-    return rows;
+    const genres = [];
+    for (const row of rows) {
+        genres.push(row.id)
+    }
+    return genres;
+};
+
+const getDirectorIds = async () : Promise<string> => {
+    Logger.info(`Getting all director ids from the database`);
+    const conn = await getPool().getConnection();
+    const query = 'select director_id from film';
+    const [ rows ] = await conn.query( query);
+    await conn.release();
+    const directors = [];
+    let stringDirectors = "";
+    for (const row of rows) {
+        if (!(row.director_id in directors)) {
+            directors.push(row.director_id)
+            stringDirectors += `'${row.director_id}' ,`;
+        }
+
+    }
+    return stringDirectors;
 };
 
 
 
-export { getFilms,getGenreIds }
+export { getFilms, getGenreIds, getDirectorIds }
