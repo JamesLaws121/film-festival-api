@@ -91,16 +91,25 @@ const getDirectorIds = async () : Promise<string> => {
 };
 
 const addFilm = async (title: string, description: string, genreId: string,
-                       releaseDate : Date, imageFilename : string, runtime : number,
+                       releaseDate : Date, runtime : number,
                        directorId : number, ageRating : string,): Promise<any> => {
     Logger.info(`Adding film ${title} to the database`);
     const conn = await getPool().getConnection();
-    const query = 'insert into film  values ( ?, ?, ?, ?, ?, ?, ?, ?)';
+    const query = "insert into film title = ?, description = ?, release_date = ?, runtime = ?, director_id = ?, genre_id = ?, age_rating = ?";
     const [ result ] = await conn.query( query,
-        [ title, description, releaseDate, imageFilename, runtime, directorId, genreId, ageRating ] );
+        [ title, description, releaseDate, runtime, directorId, genreId, ageRating ] );
     await conn.release();
 
     return result
+}
+
+const getFilmByTitle = async (title: string) : Promise<any> => {
+    Logger.info(`Searching for film ${title}`);
+    const conn = await getPool().getConnection();
+    const query = 'select * from film where title = ?'
+    const [ rows ] = await conn.query( query, [title]);
+    await conn.release();
+    return rows;
 }
 
 const getFilm = async (id : number) : Promise<Film[]> => {
@@ -134,4 +143,4 @@ const getFilmRatingAvg = async (id : number) : Promise<number> => {
 
 
 
-export { getFilms, getGenreIds, getDirectorIds, addFilm, getFilm, alterFilm, getFilmRatingAvg  }
+export { getFilms, getGenreIds, getDirectorIds, addFilm, getFilm, alterFilm, getFilmRatingAvg, getFilmByTitle }

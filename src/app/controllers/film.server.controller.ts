@@ -5,6 +5,7 @@ import Query from "mysql2/typings/mysql/lib/protocol/sequences/Query";
 import * as schemas from "../resources/schemas.json";
 import Ajv from "ajv";
 import addFormats from "ajv-formats"
+import {type} from "os";
 
 const ajv = new Ajv({removeAdditional: 'all', strict: false});
 addFormats(ajv);
@@ -121,7 +122,7 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
     try{
         const ageRatingsFixed = "'" + ageRatings.join("','") + "'";
         let results = await films.getFilms(qQuery, directorId, genreIds.toString(), ageRatingsFixed, reviewerId, sortBy);
-        // Logger.info(results);
+
         const length = results.length;;
         if (count !== null) {
             if (startIndex + count > results.length) {
@@ -141,11 +142,63 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
     }
 }
 
-const getOne = async (req: Request, res: Response): Promise<void> => {
+const addOne = async (req: Request, res: Response): Promise<void> => {
+
+    const validation = await validate(schemas.film_post, req.body);
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send('Bad Request. Invalid information');
+        return;
+    }
+
+    const title = req.body.title;
+    const findTitle = await films.getFilmByTitle(title);
+    if (findTitle.length !== 0) {
+        res.status(403).send("Forbidden. Film title is not unique, or cannot release a film in the past");
+        return;
+    }
+    const description = req.body.description;
+    const genreId = req.body.genre_id;
+
+    const currentDate = new Date();
+    let releaseDate = null;
+    Logger.info(releaseDate)
+    if (req.body.releaseDate) {
+        const dateString = req.body.releaseDate as string;
+        const [dateComponents, _] = dateString.split('T');
+        const dateComponent = dateComponents.split('/').join('-');
+
+        releaseDate = new Date(dateComponent)
+        Logger.info(releaseDate)
+        if(releaseDate.getTime() < Date.now()) {
+            res.status(403).send("Forbidden. Film title is not unique, or cannot release a film in the past");
+            return;
+        }
+    } else {
+        releaseDate = currentDate;
+    }
+
+    let runtime = null;
+    if (req.body.runtime) {
+        runtime = req.body.runtime;
+    }
+    let directorId = null;
+    if (req.body.director_id) {
+        directorId = req.body.director_id;
+    }
+    const ageRatings = ['G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'];
+    let ageRating = 'TBC';
+    if (req.body.ageRating) {
+        ageRating = req.body.ageRating;
+        if (!(ageRating in ageRatings)) {
+            res.status(400).send();
+            return;
+        }
+    }
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await films.addFilm(title, description, genreId, releaseDate, runtime, directorId, ageRating);
+        res.status(201).send({"filmId":result});
         return;
     } catch (err) {
         Logger.error(err);
@@ -155,7 +208,7 @@ const getOne = async (req: Request, res: Response): Promise<void> => {
     }
 }
 
-const addOne = async (req: Request, res: Response): Promise<void> => {
+const getOne = async (req: Request, res: Response): Promise<void> => {
     try{
         // Your code goes here
         res.statusMessage = "Not Implemented Yet!";
