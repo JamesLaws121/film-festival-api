@@ -14,15 +14,15 @@ type Film = {
     /**
      * Film as defined by the database
      */
-    id: number,
+    filmId: number,
     title : string,
     description : string,
-    release_date : Date,
-    image_filename : string,
+    releaseDate : Date,
+    imageFilename : string,
     runtime : number,
-    director_id : number,
-    genre_id : number,
-    age_rating : string,
+    directorId : number,
+    genreId : number,
+    ageRating : string,
 }
 
 type Genre = {

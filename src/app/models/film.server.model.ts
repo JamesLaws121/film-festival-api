@@ -6,49 +6,60 @@ import {getPool} from "../../config/db";
 /*
     If director id not stated don't include user table
  */
-const getFilms = async (queryString : string, genreIds: string, ageRatings: string,
+const getFilms = async (queryString : string, directorId : string, genreIds: string, ageRatings: string,
                         reviewerId: string, sortBy: string) : Promise<Film[]> => {
     Logger.info(`Getting films from the database`);
+    /*
+    Logger.info(queryString);
+    Logger.info(directorId);
+    Logger.info(genreIds);
+    Logger.info(ageRatings);
+    Logger.info(reviewerId);
+    Logger.info(sortBy);
+    */
+
+    if (queryString !== null) {
+        queryString += "%' ";
+    } else {
+        queryString = "'";
+    }
+
     const conn = await getPool().getConnection();
-    const query = "select * from film " +
-        "where title like '%?%' and description like '%?%'" +
-        " and age_rating in ( " + ageRatings + ") " +
-        " order by " + sortBy;
-    Logger.info( query)
-    const [ rows ] = await conn.query( query, [queryString, queryString, sortBy]);
+
+    const getAverage = "(select cast(cast(round(ifnull(avg(sub_film_review.rating), 0),2)as DECIMAL(9,6)) as float)  " +
+        "from film as subFilm left join film_review as sub_film_review on subFilm.id = sub_film_review.film_id " +
+        "where sub_film_review.film_id = film.id ) ";
+
+
+    let query = "select film.id as filmId, film.title, film.genre_id as genreId, " +
+        "film.director_id as directorId, " +
+        "user.first_name as directorFirstName, " +
+        "user.last_name as directorLastName, " +
+        "film.release_date as releaseDate, " +
+        "film.age_rating as ageRating, " +
+        getAverage + " as rating " +
+        "from film " +
+        "left join film_review on film.id = film_review.film_id left join user on film.director_id = user.id " +
+        "where ( title like '%" + queryString  + "or description like '%" + queryString  + ") " +
+        "and age_rating in ( " + ageRatings + ") " +
+        "and film.director_id = " + directorId + " " +
+        "and film.genre_id in ( " + genreIds + ") ";
+
+    if (reviewerId !== null) {
+        query += "and film_review.user_id = " + reviewerId + " ";
+    }
+
+    query += "group by film.id order by " + sortBy;
+
+
+
+    const [ rows ] = await conn.query( query, [sortBy]);
 
     return rows;
 };
 
-/*
-SELECT film.id as filmId, film.title, film.genre_id as genreId, film.age_rating as ageRating, film.director_id as directorId, user.first_name as directorFirstName, user.last_name as directorLastName, film_review.rating, film.release_date as releaseDate
-FROM film, film_review, user
-WHERE film.director_id = user.id and film.id = film_review.film_id
- */
 
-/*
-    If a director is given the user table must also be joined
- */
-const getFilmsWithDirector = async (queryString : string, directorId: string, genreIds: string,
-                        ageRatings: string, reviewerId: string, sortBy: string) : Promise<Film[]> => {
-    Logger.info(`Getting films from the database with director`);
-    const conn = await getPool().getConnection();
-    const query = 'select film.id as filmId, film.title, film.genre_id as genreId, ' +
-        'film.age_rating as ageRating, film.director_id as directorId, ' +
-        'user.first_name as directorFirstName, user.last_name as directorLastName, ' +
-        'film_review.rating, film.release_date as releaseDate from film ' +
-        'WHERE film.director_id = user.id and film.id = film_review.film_id ' +
-        'and title like %?% description like %?% ' +
-        'director_id =  ' + directorId + ' ' +
-        'genre_id in ( ? )  ' +
-        'age_rating in ( ? ) ' +
-        'film_review.id = ' + reviewerId + ' ' +
-        'order by ?';
-    const [ rows ] = await conn.query( query, [queryString, queryString, genreIds, ageRatings, sortBy]);
-    await conn.release();
-    return rows;
-};
-const getGenreIds = async () : Promise<number[]> => {
+const getGenreIds = async () : Promise<string[]> => {
     Logger.info(`Getting all genres from the database`);
     const conn = await getPool().getConnection();
     const query = 'select id from genre';
@@ -111,5 +122,16 @@ const alterFilm = async (id : number) : Promise<Film[]> => {
     return rows;
 };
 
+const getFilmRatingAvg = async (id : number) : Promise<number> => {
+    Logger.info(`Alter film from the database`);
+    const conn = await getPool().getConnection();
+    const query = 'select * from film where id = ?';
 
-export { getFilms, getGenreIds, getDirectorIds, getFilmsWithDirector, addFilm, getFilm, alterFilm  }
+    const [ rows ] = await conn.query( query, [id]);
+    await conn.release();
+    return rows;
+}
+
+
+
+export { getFilms, getGenreIds, getDirectorIds, addFilm, getFilm, alterFilm, getFilmRatingAvg  }

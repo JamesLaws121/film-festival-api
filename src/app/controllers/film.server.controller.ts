@@ -2,70 +2,136 @@ import {Request, Response} from "express";
 import Logger from "../../config/logger";
 import * as films from "../models/film.server.model";
 import Query from "mysql2/typings/mysql/lib/protocol/sequences/Query";
+import * as schemas from "../resources/schemas.json";
+import Ajv from "ajv";
+import addFormats from "ajv-formats"
 
+const ajv = new Ajv({removeAdditional: 'all', strict: false});
+addFormats(ajv);
+ajv.addFormat("integer", /[0-9]+/)
+const validate = async (schema: object, data: any) => {
+    try {
+        const validator = ajv.compile(schema);
+        const valid = await validator(data);
+        if(!valid) {
+            return ajv.errorsText(validator.errors);
+        }
+        return true;
+    } catch (err) {
+        return err.message;
+    }
+}
 
 
 const viewAll = async (req: Request, res: Response): Promise<any> => {
 
+    const validation = await validate(
+        schemas.film_search,
+        req.query);
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send('Bad Request. Invalid information');
+        return;
+    }
+
     let startIndex = 0;
     let count = null;
-    let qQuery = " ";
-    let directorId = null;
-    let genreIds = (await films.getGenreIds()).toString();
-    let ageRating = "'G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'";
-    let reviewerId = "id";
+    let qQuery = null;
+    let directorId = 'director_id';
+    let genreIds = (await films.getGenreIds());
+    let ageRatings = ['G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'];
+    let reviewerId = null;
     let sortBy = "release_date"
 
-    if ((req.params.startIndex)) {
-        startIndex = parseInt(req.params.startIndex, 10);
+    if ((req.query.reviewerId)) {
+        reviewerId = req.query.reviewer_id as string;
     }
-    if ((req.params.count)) {
-        count = parseInt(req.params.count, 10);
+    if ((req.query.startIndex)) {
+        startIndex = parseInt((req.query.startIndex as string), 10);
     }
-    if ((req.params.q)) {
-        qQuery = req.params.q;
+    if ((req.query.count)) {
+        count = parseInt(req.query.count as string, 10);
     }
-    if ((req.params.directorId)) {
-        directorId = req.params.directorId;
-        Logger.info("here");
-        Logger.info(directorId);
+    if ((req.query.q)) {
+        qQuery = req.query.q as string;
     }
-    if ((req.params.genreIds)) {
-        genreIds =  req.params['genreIds[]'][0]
+
+    if ((req.query.directorId)) {
+        directorId = req.query.directorId  as string;
     }
-    if ((req.body.ageRating)) {
-        ageRating = req.body.ageRating;
+    if ((req.query.genreIds)) {
+        const givenGenreIds =  req.query.genreIds as string;
+        if (typeof givenGenreIds === "string") {
+            if (!(givenGenreIds in genreIds)) {
+                res.status(400).send('Bad Request. Invalid information');
+                return;
+            } else {
+                genreIds = [givenGenreIds];
+            }
+        } else {
+            for (const genre of req.query.genreIds as string[]){
+                if (!(genre in genreIds)) {
+                    res.status(400).send('Bad Request. Invalid information');
+                    return;
+                }
+            }
+            genreIds = givenGenreIds;
+        }
     }
-    if ((req.body.reviewerId)) {
-        reviewerId = req.body.reviewerId;
+
+    if ((req.query.ageRatings)) {
+        const givenAgeRating =  req.query.ageRatings as string;
+        if (typeof givenAgeRating === "string") {
+            if (!(givenAgeRating in ageRatings)) {
+                res.status(400).send('Bad Request. Invalid information');
+                return;
+            } else {
+                ageRatings = [givenAgeRating];
+            }
+        } else {
+            for (const rating of req.query.ageRatings as string[]){
+                if (!(ageRatings.indexOf(rating) > -1)) {
+                    Logger.info("hello");
+                    res.status(400).send('Bad Request. Invalid information');
+                    return;
+                }
+            }
+            ageRatings = givenAgeRating;
+        }
     }
-    if ((req.body.sortBy)) {
-        sortBy = req.body.sortBy;
+    if ((req.query.reviewerId)) {
+        reviewerId = req.query.reviewerId as string;
+    }
+    if ((req.query.sortBy)) {
+        sortBy = req.query.sortBy as string;
+        if (sortBy === 'ALPHABETICAL_ASC') {
+            sortBy = 'title, film.id';
+        } else if (sortBy === 'ALPHABETICAL_DESC') {
+            sortBy = 'title DESC, film.id';
+        } else if (sortBy === 'RELEASED_DESC') {
+            sortBy = 'release_date DESC, film.id';
+        } else if (sortBy === 'RATING_ASC') {
+            sortBy = 'ifnull(avg(film_review.rating), 0), film.id';
+        } else if (sortBy === 'RATING_DESC') {
+            sortBy = 'ifnull(avg(film_review.rating), 0) DESC, film.id';
+        } else  {
+            sortBy = 'release_date';
+        }
     }
     try{
-        // Logger.info(query);
-        // Logger.info("Director ids" + directorId.toString());
-        // Logger.info(genreIds.toString());
-        // Logger.info(ageRating.toString());
-        // Logger.info(reviewerId);
-        // Logger.info(sortBy);
-
-        let results;
-        if (directorId !== null){
-            results = await films.getFilmsWithDirector(qQuery, directorId, genreIds, ageRating, reviewerId, sortBy);
-
-        } else {
-            results = await films.getFilms(qQuery, genreIds, ageRating, reviewerId, sortBy);
-        }
+        const ageRatingsFixed = "'" + ageRatings.join("','") + "'";
+        let results = await films.getFilms(qQuery, directorId, genreIds.toString(), ageRatingsFixed, reviewerId, sortBy);
+        // Logger.info(results);
+        const length = results.length;;
         if (count !== null) {
             if (startIndex + count > results.length) {
                 res.status(400).send("Bad Request");
+                return;
             }
-        } else {
-            count = results.length;
-            Logger.info(count);
+            results = results.slice(startIndex, count);
         }
-        res.status(200).send({"films" : results , "count" : count});
+
+        res.status(200).send({"films" : results , "count" : length});
         return;
     } catch (err) {
         Logger.error(err);
