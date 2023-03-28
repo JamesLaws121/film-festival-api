@@ -6,10 +6,13 @@ import * as schemas from "../resources/schemas.json";
 import Ajv from "ajv";
 import addFormats from "ajv-formats"
 import {type} from "os";
+import {deleteFilm, getFilm, getReviewsByFilm} from "../models/film.server.model";
+import logger from "../../config/logger";
 
 const ajv = new Ajv({removeAdditional: 'all', strict: false});
 addFormats(ajv);
 ajv.addFormat("integer", /[0-9]+/)
+ajv.addFormat("datetime", /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/)
 const validate = async (schema: object, data: any) => {
     try {
         const validator = ajv.compile(schema);
@@ -143,6 +146,11 @@ const viewAll = async (req: Request, res: Response): Promise<any> => {
 }
 
 const addOne = async (req: Request, res: Response): Promise<void> => {
+    const directorId = req.body.authenticatedUserId;
+    if (directorId === null) {
+        res.status(401).send('Unauthorized');
+        return;
+    }
 
     const validation = await validate(schemas.film_post, req.body);
     if (validation !== true) {
@@ -151,25 +159,36 @@ const addOne = async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
+    if (!(req.body.title)) {
+        res.status(400).send("Bad Request");
+        return;
+    }
     const title = req.body.title;
     const findTitle = await films.getFilmByTitle(title);
     if (findTitle.length !== 0) {
         res.status(403).send("Forbidden. Film title is not unique, or cannot release a film in the past");
         return;
     }
+
+    if (!(req.body.description)) {
+        res.status(400).send("Bad Request");
+        return;
+    }
     const description = req.body.description;
-    const genreId = req.body.genre_id;
+
+    const genreId = req.body.genreId;
+    if (genreId === null) {
+        res.status(400).send("Bad Request");
+        return;
+    }
 
     const currentDate = new Date();
     let releaseDate = null;
-    Logger.info(releaseDate)
+
     if (req.body.releaseDate) {
         const dateString = req.body.releaseDate as string;
-        const [dateComponents, _] = dateString.split('T');
-        const dateComponent = dateComponents.split('/').join('-');
+        releaseDate = new Date(Date.parse(dateString))
 
-        releaseDate = new Date(dateComponent)
-        Logger.info(releaseDate)
         if(releaseDate.getTime() < Date.now()) {
             res.status(403).send("Forbidden. Film title is not unique, or cannot release a film in the past");
             return;
@@ -182,23 +201,14 @@ const addOne = async (req: Request, res: Response): Promise<void> => {
     if (req.body.runtime) {
         runtime = req.body.runtime;
     }
-    let directorId = null;
-    if (req.body.director_id) {
-        directorId = req.body.director_id;
-    }
-    const ageRatings = ['G', 'PG', 'M', 'R13', 'R16', 'R18', 'TBC'];
     let ageRating = 'TBC';
     if (req.body.ageRating) {
-        ageRating = req.body.ageRating;
-        if (!(ageRating in ageRatings)) {
-            res.status(400).send();
-            return;
-        }
+        ageRating = req.body.ageRating as string;
     }
 
     try{
         const result = await films.addFilm(title, description, genreId, releaseDate, runtime, directorId, ageRating);
-        res.status(201).send({"filmId":result});
+        res.status(201).send({"filmId":result.insertId});
         return;
     } catch (err) {
         Logger.error(err);
@@ -209,10 +219,17 @@ const addOne = async (req: Request, res: Response): Promise<void> => {
 }
 
 const getOne = async (req: Request, res: Response): Promise<void> => {
+    const filmId = req.params.id
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await films.getFilm(parseInt(filmId, 10));
+
+        if (result.length === 0) {
+            res.status(404).send("Not Found. No film with id");
+            return;
+        }
+
+        res.status(200).send(result[0]);
         return;
     } catch (err) {
         Logger.error(err);
@@ -223,10 +240,104 @@ const getOne = async (req: Request, res: Response): Promise<void> => {
 }
 
 const editOne = async (req: Request, res: Response): Promise<void> => {
+    const directorId = req.body.authenticatedUserId;
+
+    if (directorId === null) {
+        res.status(401).send('Unauthorized');
+        return;
+    }
+
+    const validation = await validate(schemas.film_patch, req.body);
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send('Bad Request. Invalid information');
+        return;
+    }
+
+    const filmId = req.params.id;
+    const foundFilms = await films.getFilmById(parseInt(filmId, 10));
+
+    if (foundFilms.length === 0) {
+        res.status(404).send('Not Found. No film found with id');
+        return;
+    }
+    const foundFilm = foundFilms[0]
+
+    let filmDirector = await films.getDirector(parseInt(filmId, 10));
+    filmDirector = filmDirector[0][0].director_id;
+
+    if (directorId !== filmDirector) {
+        res.status(403).send('Forbidden. Only the director of an film may change it,' +
+            ' cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed, or cannot release a film in the past');
+        return;
+    }
+
+    const reviewMade = await films.getReviewsByFilm(parseInt(filmId, 10));
+    if (reviewMade.length !== 0) {
+        res.status(403).send('Forbidden. Only the director of an film may change it,' +
+            ' cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed, or cannot release a film in the past');
+        return;
+    }
+
+    const genreIds = (await films.getGenreIds());
+
+    let title = foundFilm.title;
+    let description = foundFilm.description;
+    let releaseDate = foundFilm.releaseDate;
+    let genreId = foundFilm.genreId;
+    let runtime = foundFilm.runtime;
+    let ageRating = foundFilm.ageRating;
+
+    if (typeof(req.body.title) !== 'undefined') {
+        title = req.body.title;
+        if (title.length === 0) {
+            res.status(400).send('Bad Request. Invalid information');
+            return;
+        }
+    }
+    if (typeof(req.body.description) !== 'undefined') {
+        description = req.body.description;
+        if (description.length === 0) {
+            res.status(400).send('Bad Request. Invalid information');
+            return;
+        }
+    }
+    if (typeof(req.body.releaseDate) !== 'undefined') {
+        if(releaseDate.getTime() >= Date.now()) {
+            res.status(403).send("Forbidden. Only the director of an film may change it," +
+                " cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed," +
+                " or cannot release a film in the past");
+            return;
+        }
+        const dateString = req.body.releaseDate as string;
+        releaseDate = new Date(Date.parse(dateString))
+
+        if(releaseDate.getTime() < Date.now()) {
+            res.status(403).send("Forbidden. Only the director of an film may change it," +
+                " cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed," +
+                " or cannot release a film in the past");
+            return;
+        }
+    }
+    if (typeof(req.body.genreId) !== 'undefined') {
+        const givenGenreId = req.body.genreId;
+        if (!(givenGenreId in genreIds)) {
+            res.status(400).send('Bad Request. Invalid information');
+            return;
+        }
+        genreId = parseInt(givenGenreId, 10);
+    }
+    if (req.body.runtime) {
+        runtime = req.body.runtime;
+    }
+    if (req.body.ageRating) {
+        ageRating = req.body.ageRating;
+    }
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await films.alterFilm(parseInt(filmId, 10), title, description, releaseDate, genreId,
+            runtime, ageRating);
+        res.status(200).send();
         return;
     } catch (err) {
         Logger.error(err);
@@ -237,10 +348,30 @@ const editOne = async (req: Request, res: Response): Promise<void> => {
 }
 
 const deleteOne = async (req: Request, res: Response): Promise<void> => {
+    const directorId = req.body.authenticatedUserId;
+    if (directorId === null) {
+        res.status(401).send('Unauthorized');
+        return;
+    }
+    const filmId = req.params.id;
+    const foundFilms = await films.getFilmById(parseInt(filmId, 10));
+
+    if (foundFilms.length === 0) {
+        res.status(404).send('Not Found. No film found with id');
+        return;
+    }
+
+    let filmDirector = await films.getDirector(parseInt(filmId, 10));
+    filmDirector = filmDirector[0][0].director_id;
+
+    if (directorId !== filmDirector) {
+        res.status(403).send('Forbidden. Only the director of an film can delete it');
+        return;
+    }
+
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await deleteFilm(parseInt(filmId, 10))
+        res.status(200).send(result);
         return;
     } catch (err) {
         Logger.error(err);
@@ -252,9 +383,8 @@ const deleteOne = async (req: Request, res: Response): Promise<void> => {
 
 const getGenres = async (req: Request, res: Response): Promise<void> => {
     try{
-        // Your code goes here
-        res.statusMessage = "Not Implemented Yet!";
-        res.status(501).send();
+        const result = await films.getGenres();
+        res.status(200).send(result);
         return;
     } catch (err) {
         Logger.error(err);
