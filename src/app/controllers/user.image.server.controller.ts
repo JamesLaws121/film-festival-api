@@ -88,7 +88,7 @@ const setImage = async (req: Request, res: Response): Promise<void> => {
 
         if ( photoFound.length === 0 ){
             await users.saveImage(parseInt(id, 10), imageName);
-            res.status(201).send("Created. New image created");
+            res.status(200).send("Created. New image created");
             return;
         } else {
             await users.saveImage(parseInt(id, 10), imageName);

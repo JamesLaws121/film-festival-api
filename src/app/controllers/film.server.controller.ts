@@ -8,6 +8,7 @@ import addFormats from "ajv-formats"
 import {type} from "os";
 import {deleteFilm, getFilm, getReviewsByFilm} from "../models/film.server.model";
 import logger from "../../config/logger";
+import fs from "fs";
 
 const ajv = new Ajv({removeAdditional: 'all', strict: false});
 addFormats(ajv);
@@ -264,7 +265,7 @@ const editOne = async (req: Request, res: Response): Promise<void> => {
     const foundFilm = foundFilms[0]
 
     let filmDirector = await films.getDirector(parseInt(filmId, 10));
-    filmDirector = filmDirector[0][0].director_id;
+    filmDirector = filmDirector[0][0].directorId;
 
     if (directorId !== filmDirector) {
         res.status(403).send('Forbidden. Only the director of an film may change it,' +
@@ -273,6 +274,7 @@ const editOne = async (req: Request, res: Response): Promise<void> => {
     }
 
     const reviewMade = await films.getReviewsByFilm(parseInt(filmId, 10));
+
     if (reviewMade.length !== 0) {
         res.status(403).send('Forbidden. Only the director of an film may change it,' +
             ' cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed, or cannot release a film in the past');
@@ -303,7 +305,7 @@ const editOne = async (req: Request, res: Response): Promise<void> => {
         }
     }
     if (typeof(req.body.releaseDate) !== 'undefined') {
-        if(releaseDate.getTime() >= Date.now()) {
+        if(releaseDate.getTime() <= Date.now()) {
             res.status(403).send("Forbidden. Only the director of an film may change it," +
                 " cannot change the releaseDate since it has already passed, cannot edit a film that has a review placed," +
                 " or cannot release a film in the past");
@@ -362,7 +364,7 @@ const deleteOne = async (req: Request, res: Response): Promise<void> => {
     }
 
     let filmDirector = await films.getDirector(parseInt(filmId, 10));
-    filmDirector = filmDirector[0][0].director_id;
+    filmDirector = filmDirector[0][0].directorId;
 
     if (directorId !== filmDirector) {
         res.status(403).send('Forbidden. Only the director of an film can delete it');
@@ -370,7 +372,20 @@ const deleteOne = async (req: Request, res: Response): Promise<void> => {
     }
 
     try{
+        if (foundFilms[0].imageFilename) {
+            const fileName = foundFilms[0].imageFilename;
+            const filePath = "./storage/images/" + fileName;
+            fs.unlink(filePath, (err) => {
+                if (err) {
+                    Logger.error("Photo not found");
+                    res.status(500).send("Internal Server Error");
+                    return;
+                }
+            })
+        }
+
         const result = await deleteFilm(parseInt(filmId, 10))
+
         res.status(200).send(result);
         return;
     } catch (err) {

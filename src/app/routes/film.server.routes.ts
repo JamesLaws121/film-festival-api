@@ -20,9 +20,9 @@ module.exports = (app: Express) => {
 
     app.route(rootUrl+'/films/:id/reviews')
         .get(filmReviews.getReviews)
-        .post(filmReviews.addReview);
+        .post(authenticate.loginRequired, filmReviews.addReview);
 
     app.route(rootUrl+'/films/:id/image')
         .get(filmImages.getImage)
-        .put(filmImages.setImage);
+        .put(authenticate.loginRequired, filmImages.setImage);
 }

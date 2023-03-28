@@ -151,12 +151,15 @@ const view = async (req: Request, res: Response): Promise<void> => {
         } else {
             if (authenticatedId !== null && authenticatedId.toString() === id.toString()) {
                 res.status(200).send({"firstName": user.first_name, "lastName": user.last_name, "email": user.email});
+                return;
             } else {
                 res.status(200).send({"firstName": user.first_name, "lastName": user.last_name});
+                return;
             }
         }
     } catch (err) {
         res.status( 500 ).send( `ERROR reading user ${id}: ${ err }` );
+        return;
     }
 };
 
@@ -164,12 +167,18 @@ const view = async (req: Request, res: Response): Promise<void> => {
 const update = async (req: Request, res: Response): Promise<void> => {
     Logger.http(`Update user, id: ${req.params.id}`)
 
-
     const authenticatedId = req.body.authenticatedUserId;
     const id = req.params.id;
 
     if ((authenticatedId === null || authenticatedId.toString() !== id.toString())) {
         res.status( 403 ).send('Forbidden. This is not your account, or the email is already in use, or identical current and new passwords');
+        return;
+    }
+
+    const validation = await validate(schemas.user_edit,  req.body);
+    if (validation !== true) {
+        res.statusMessage = `Bad Request: ${validation.toString()}`;
+        res.status(400).send('Bad Request. Invalid information');
         return;
     }
 
@@ -235,6 +244,9 @@ const update = async (req: Request, res: Response): Promise<void> => {
 
     try{
         await users.alterUser(parseInt(id, 10), email, firstName, lastName, password);
+        res.status(200).send();
+        return;
+
     } catch (err) {
         Logger.error(err);
         res.statusMessage = "Internal Server Error";

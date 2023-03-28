@@ -91,7 +91,7 @@ const getFilmByTitle = async (title: string) : Promise<any> => {
 const getDirector = async (filmId : number) : Promise<any> => {
     Logger.info(`Searching for director from film ${filmId}`);
     const conn = await getPool().getConnection();
-    const query = 'select director_id from film where id = ?'
+    const query = 'select director_id as directorId from film where id = ?'
     const rows  = await conn.query( query, [filmId]);
     await conn.release();
     return rows;
@@ -124,6 +124,34 @@ const getFilm = async (id : number) : Promise<Film[]> => {
 
 
     const [ rows ] = await conn.query( query, [id] );
+    await conn.release();
+    return rows;
+};
+
+const getFilmReviews = async (id : number) : Promise<Film[]> => {
+    Logger.info(`Get film reviews for a film`);
+    const conn = await getPool().getConnection();
+
+    const query = "select user.id as reviewerId, film_review.rating, film_review.review, " +
+        "user.first_name as reviewerFirstName, user.last_name as reviewerLastName, " +
+        "film_review.timestamp " +
+        "from film_review " +
+        "join user on film_review.user_id = user.id " +
+        "where film_review.film_id = ? " +
+        "order by film_review.timestamp desc";
+
+    const [ rows ] = await conn.query( query, [id] );
+    await conn.release();
+    return rows;
+};
+
+const addFilmReview = async (filmId : number, userId : number, rating : number, review : string) : Promise<Film[]> => {
+    Logger.info(`Post film review for a film`);
+    const conn = await getPool().getConnection();
+
+    const query = "insert into film_review (film_id, user_id, rating, review) VALUES(?, ?, ?, ?)";
+
+    const [ rows ] = await conn.query( query, [filmId, userId, rating, review] );
     await conn.release();
     return rows;
 };
@@ -171,5 +199,27 @@ const getReviewsByFilm = async (filmId : number) : Promise<Film[]> => {
     return rows;
 };
 
+const getImage = async (id : number) : Promise<Film[]> => {
+    Logger.info(`Getting image for film`);
+    const conn = await getPool().getConnection();
+    const query = 'select image_filename as imageFilename from film where id = ?';
 
-export { getFilms, getGenreIds, addFilm, getFilm, alterFilm, getFilmByTitle, getGenres, deleteFilm, getDirector, getFilmById, getReviewsByFilm}
+    const [ rows ] = await conn.query( query, [id]);
+    await conn.release();
+    return rows;
+};
+
+const saveImage = async (id : number, imageFilename: string) : Promise<Film[]> => {
+    Logger.info(`Getting image for film`);
+    const conn = await getPool().getConnection();
+    const query = 'update film set image_filename = ? where id = ? ';
+
+    const [ rows ] = await conn.query( query, [imageFilename, id]);
+    await conn.release();
+    return rows;
+};
+
+
+
+export { getFilms, getGenreIds, addFilm, getFilm, alterFilm, getFilmByTitle, getGenres, deleteFilm, getDirector,
+    getFilmById, getReviewsByFilm, getImage, saveImage, getFilmReviews, addFilmReview}
