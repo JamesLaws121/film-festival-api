@@ -14,11 +14,24 @@ const register = async (email : string, firstName : string, lastName : string, p
     return findUserIdByEmail(email);
 }
 
+const findByToken = async (token: string): Promise<User[]> => {
+    Logger.info('Checks if a token already exists in the database');
+    const conn = await getPool().getConnection();
+
+    const query = 'select * from user where auth_token = ?';
+    const [ rows ] = await conn.query( query, [ token ] );
+    await conn.release();
+    return rows;
+}
 const login = async (email : string, password : string): Promise<string> => {
     Logger.info(`Logging in as existing user`);
     const conn = await getPool().getConnection();
+    let token = uid(12);
+    while ( (await findByToken(token)).length !== 0 ) {
+        token = uid(12);
+    }
+
     await conn.release();
-    const token = uid(12);
     return token;
 }
 
@@ -69,11 +82,11 @@ const alterUser = async (id : number, email : string, firstName : string, lastNa
 
 }
 
-const findUserIdByToken = async (token: string) : Promise<any> => {
+const findUserByToken = async (token: string) : Promise<User[]> => {
     Logger.info('Getting user id from token');
     const conn = await getPool().getConnection();
-    const query = 'select id from user where auth_token = ?';
-    const id = await conn.query( query, [ token ] );
+    const query = 'select * from user where auth_token = ?';
+    const [ id ] = await conn.query( query, [ token ] );
     await conn.release();
     return id;
 }
@@ -128,5 +141,5 @@ const deleteImage = async (id: number) : Promise<any> => {
 }
 
 
-export { login, logout, getUser, insert, alterUser, register, getUserByEmail, findUserIdByToken,
+export { login, logout, getUser, insert, alterUser, register, getUserByEmail, findUserByToken,
     insertTokenByEmail, findUserIdByEmail, saveImage, getImage, deleteImage}

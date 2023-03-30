@@ -1,7 +1,8 @@
-import {findUserIdByToken} from "../models/user.server.model";
+import {findUserByToken} from "../models/user.server.model";
 import Logger from "../../config/logger";
 import {Request, Response} from "express";
 import util from "node:util"
+import logger from "../../config/logger";
 
 const loginRequired = async (req: Request, res: Response, next: () => void) => {
     const token = req.header('X-Authorization')
@@ -12,10 +13,9 @@ const loginRequired = async (req: Request, res: Response, next: () => void) => {
     }
 
     try {
-        const result = await findUserIdByToken(token);
-
-        if (result[0].length !== 0) {
-            req.body.authenticatedUserId = result[0][0].id;
+        const result = await findUserByToken(token);
+        if (result.length !== 0) {
+            req.body.authenticatedUserId = result[0].id;
         }
         next();
 

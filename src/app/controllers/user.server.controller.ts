@@ -5,8 +5,13 @@ import * as schemas from '../resources/schemas.json';
 import Ajv from 'ajv';
 import bcrypt from 'bcrypt';
 import {findUserIdByEmail, getUserByEmail} from "../models/user.server.model";
+import addFormats from "ajv-formats";
+import logger from "../../config/logger";
 
 const ajv = new Ajv({removeAdditional: 'all', strict: false});
+addFormats(ajv);
+ajv.addFormat("integer", /[0-9]+/)
+ajv.addFormat("email", /.+@.+[.].+/)
 const validate = async (schema: object, data: any) => {
     try {
         const validator = ajv.compile(schema);
@@ -18,11 +23,6 @@ const validate = async (schema: object, data: any) => {
     } catch (err) {
         return err.message;
     }
-}
-
-const validateEmail = async (email : string) => {
-    const emailRegex = new RegExp('.+@.+[.].+');
-    return emailRegex.test(email)
 }
 
 const register = async (req: Request, res: Response): Promise<number> => {
@@ -38,11 +38,6 @@ const register = async (req: Request, res: Response): Promise<number> => {
     }
 
     const email = req.body.email;
-    if (!(await validateEmail(email))) {
-        res.statusMessage = 'Bad Request: invalid email';
-        res.status( 400 ).send('Bad Request. Invalid information');
-        return;
-    }
     const firstName = req.body.firstName;
     const lastName = req.body.lastName;
     const password = req.body.password;
@@ -55,14 +50,17 @@ const register = async (req: Request, res: Response): Promise<number> => {
     try{
         const exists = await users.getUserByEmail(email);
         if (exists.length !== 0 ) {
+            res.statusMessage = 'Forbidden. Email already in use';
             res.status( 403 ).send('Forbidden. Email already in use');
             return;
         }
         const result = await users.register(email, firstName, lastName, hashedPassword);
         if( result === 400 ){
             res.status( 400 ).send('Bad Request. Invalid information');
+            return;
         }  else {
             res.status( 201 ).send( {"userId":result} );
+            return;
         }
         return;
     } catch (err) {
@@ -76,9 +74,7 @@ const register = async (req: Request, res: Response): Promise<number> => {
 const login = async (req: Request, res: Response): Promise<void> => {
     Logger.http('Login user')
 
-    const validation = await validate(
-        schemas.user_login,
-        req.body);
+    const validation = await validate(schemas.user_login, req.body);
 
     if (validation !== true) {
         res.statusMessage = `Bad Request: ${validation.toString()}`;
@@ -136,7 +132,7 @@ const logout = async (req: Request, res: Response): Promise<void> => {
     }
 }
 
-const view = async (req: Request, res: Response): Promise<void> => {
+const view = async (req: Request, res: Response): Promise<any> => {
     Logger.http(`GET single user, id: ${req.params.id}`)
 
     const authenticatedId = req.body.authenticatedUserId;
@@ -144,18 +140,18 @@ const view = async (req: Request, res: Response): Promise<void> => {
 
     try{
         const result = await users.getUser(parseInt(id, 10));
-        const user = result[0];
-
-        if( result.length === 0 ){
+        if(result.length === 0 ){
             res.status( 404 ).send('User not found');
+            return;
+        }
+
+        const user = result[0];
+        if (authenticatedId !== null && authenticatedId.toString() === id.toString()) {
+            res.status(200).send({"firstName": user.first_name, "lastName": user.last_name, "email": user.email});
+            return;
         } else {
-            if (authenticatedId !== null && authenticatedId.toString() === id.toString()) {
-                res.status(200).send({"firstName": user.first_name, "lastName": user.last_name, "email": user.email});
-                return;
-            } else {
-                res.status(200).send({"firstName": user.first_name, "lastName": user.last_name});
-                return;
-            }
+            res.status(200).send({"firstName": user.first_name, "lastName": user.last_name});
+            return;
         }
     } catch (err) {
         res.status( 500 ).send( `ERROR reading user ${id}: ${ err }` );
@@ -231,10 +227,6 @@ const update = async (req: Request, res: Response): Promise<void> => {
     if (req.body.email){
         email = req.body.email;
         if (email !== null && email !== oldEmail) {
-            if(!(await validateEmail(email))) {
-                res.status( 400 ).send('Email address is invalid');
-                return;
-            }
             if (!((await users.getUserByEmail(email)).length === 0)) {
                 res.status( 403 ).send('Email is already in use');
                 return;
