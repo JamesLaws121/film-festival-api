@@ -140,7 +140,8 @@ const view = async (req: Request, res: Response): Promise<any> => {
 
     try{
         const result = await users.getUser(parseInt(id, 10));
-        if(result.length === 0 ){
+        const userFound = result.length;
+        if(userFound === 0 ){
             res.status( 404 ).send('User not found');
             return;
         }

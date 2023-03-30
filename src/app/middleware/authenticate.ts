@@ -10,6 +10,7 @@ const loginRequired = async (req: Request, res: Response, next: () => void) => {
 
     if (token == null){
         next();
+        return;
     }
 
     try {
@@ -18,6 +19,7 @@ const loginRequired = async (req: Request, res: Response, next: () => void) => {
             req.body.authenticatedUserId = result[0].id;
         }
         next();
+        return;
 
     } catch (err) {
         Logger.error(err);
