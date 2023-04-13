@@ -6,9 +6,9 @@ import * as users from "../models/user.server.model";
 
 
 const getImage = async (req: Request, res: Response): Promise<void> => {
-    Logger.http(`Get image from film, id: ${req.params.id}`)
-    const id = req.params.id;
     try{
+        Logger.http(`Get image from film, id: ${req.params.id}`)
+        const id = req.params.id;
         const result = await films.getImage(parseInt(id, 10));
         if (result.length === 0) {
             res.status( 404 ).send('Not found. No film found with id, or film has no image');

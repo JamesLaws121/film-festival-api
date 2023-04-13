@@ -2,32 +2,32 @@ import {Request, Response} from "express";
 import Logger from "../../config/logger";
 import * as users from "../models/user.server.model";
 import * as fs from "fs";
-import { Buffer } from 'buffer';
+import {Buffer} from 'buffer';
 import {info} from "winston";
 
 
 const getImage = async (req: Request, res: Response): Promise<void> => {
-    Logger.http(`Get image from user, id: ${req.params.id}`)
-    const id = req.params.id;
-    try{
+    try {
+        Logger.http(`Get image from user, id: ${req.params.id}`)
+        const id = req.params.id;
         const result = await users.getImage(parseInt(id, 10));
         const fileName = result[0][0].image_filename;
         const filePath = "./storage/images/" + fileName;
 
         if (!fileName) {
-            res.status( 404 ).send('Not Found. No user with specified ID, or user has no image');
+            res.status(404).send('Not Found. No user with specified ID, or user has no image');
             return;
         }
 
         fs.readFile(filePath,
-            {encoding:'base64', flag:'r'},
+            {encoding: 'base64', flag: 'r'},
             (err, data) => {
-                if(err) {
+                if (err) {
                     Logger.error("Photo not found");
                     res.status(500).send("Internal Server Error");
                     return;
                 } else {
-                    res.status(200).sendFile(filePath, { root: '.' });
+                    res.status(200).sendFile(filePath, {root: '.'});
                     return;
                 }
             });
@@ -41,38 +41,38 @@ const getImage = async (req: Request, res: Response): Promise<void> => {
 
 
 const setImage = async (req: Request, res: Response): Promise<void> => {
-    Logger.http(`Save image for user, id: ${req.params.id}`)
-    const id = req.params.id;
-    const imageType = req.header('Content-Type')
-    const image = req.body;
 
-    let imageName = `user_${id}`;
+    try {
+        Logger.http(`Save image for user, id: ${req.params.id}`)
+        const id = req.params.id;
+        const imageType = req.header('Content-Type')
+        const image = req.body;
 
-    const authenticatedId = req.body.authenticatedUserId;
-    if (authenticatedId == null){
-        res.status( 401 ).send('Unauthorized');
-        return;
-    }
-    if (authenticatedId.toString() !== id.toString()){
-        res.status( 403 ).send('Forbidden. Can not change another user\'s profile photo');
-        return;
-    }
+        let imageName = `user_${id}`;
 
-    try{
+        const authenticatedId = req.body.authenticatedUserId;
+        if (authenticatedId == null) {
+            res.status(401).send('Unauthorized');
+            return;
+        }
+        if (authenticatedId.toString() !== id.toString()) {
+            res.status(403).send('Forbidden. Can not change another user\'s profile photo');
+            return;
+        }
         const result = await users.getUser(parseInt(id, 10));
 
-        if( result.length === 0 ){
-            res.status( 404 ).send('Not found. No such user with ID given');
+        if (result.length === 0) {
+            res.status(404).send('Not found. No such user with ID given');
             return;
         }
         if (imageType === "image/jpeg") {
             imageName += '.jpg';
-        } else if (imageType === "image/png"){
+        } else if (imageType === "image/png") {
             imageName += '.png';
-        } else if (imageType === "image/gif"){
+        } else if (imageType === "image/gif") {
             imageName += '.gif';
         } else {
-            res.status( 400 ).send('Bad Request. Invalid image supplied (possibly incorrect file type)');
+            res.status(400).send('Bad Request. Invalid image supplied (possibly incorrect file type)');
             return;
         }
 
@@ -86,7 +86,7 @@ const setImage = async (req: Request, res: Response): Promise<void> => {
 
         const photoFound = await users.getImage(parseInt(id, 10));
 
-        if ( photoFound.length === 0 ){
+        if (photoFound.length === 0) {
             await users.saveImage(parseInt(id, 10), imageName);
             res.status(200).send("Created. New image created");
             return;
@@ -110,12 +110,12 @@ const deleteImage = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id;
 
     const authenticatedId = req.body.authenticatedUserId;
-    if (authenticatedId == null){
-        res.status( 401 ).send('Unauthorized');
+    if (authenticatedId == null) {
+        res.status(401).send('Unauthorized');
         return;
     }
-    if (authenticatedId.toString() !== id.toString()){
-        res.status( 403 ).send('Forbidden. Can not change another user\'s profile photo');
+    if (authenticatedId.toString() !== id.toString()) {
+        res.status(403).send('Forbidden. Can not change another user\'s profile photo');
         return;
     }
 
@@ -123,18 +123,17 @@ const deleteImage = async (req: Request, res: Response): Promise<void> => {
     const filePath = "./storage/images/" + result[0][0].image_filename;
 
     if (!filePath) {
-        res.status( 404 ).send('Not Found. No user with specified ID, or user has no image');
+        res.status(404).send('Not Found. No user with specified ID, or user has no image');
         return;
     }
 
-    try{
+    try {
         fs.unlink(filePath, (err => {
             if (err) {
                 Logger.error(err);
                 res.status(500).send("Internal Server Error");
                 return;
-            }
-            else {
+            } else {
                 res.status(200).send("OK");
                 return;
             }
